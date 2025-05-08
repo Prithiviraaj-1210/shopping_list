@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Groceries Shopping List</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body class="bg-gradient-to-r from-indigo-100 to-purple-200 min-h-screen flex items-center justify-center p-4">
+
+  <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md sm:max-w-lg">
+    <h2 class="text-3xl font-bold text-center text-indigo-700 mb-6">Groceries Shopping List</h2>
+
+    <div>
+      <input type="text" id="item-name" placeholder="Item Name" class="w-full border p-2 rounded mb-3 focus:outline-indigo-400">
+      <div class="flex space-x-2 mb-3">
+        <select id="quantity-select" class="w-1/2 border p-2 rounded focus:outline-indigo-400">
+          <option value="1 KG">1 KG</option>
+          <option value="500 GMS">500 GMS</option>
+          <option value="250 GMS">250 GMS</option>
+          <option value="1 Litre">1 Litre</option>
+          <option value="500 ML">500 ML</option>
+        </select>
+        <input type="text" id="manual-quantity" placeholder="Custom Quantity" class="w-1/2 border p-2 rounded focus:outline-indigo-400">
+      </div>
+      <button onclick="addItem()" class="bg-indigo-500 hover:bg-indigo-600 text-white rounded w-full py-2 mb-4">Add Item</button>
+    </div>
+
+    <!-- Items List -->
+    <div id="items-list" class="mb-4 space-y-2"></div>
+
+    <!-- Actions -->
+    <div class="grid grid-cols-2 gap-2 mb-4">
+      <button onclick="downloadCSV()" class="bg-red-500 hover:bg-red-600 text-white rounded py-2">Download CSV</button>
+      <button onclick="sendToWhatsApp()" class="bg-green-500 hover:bg-green-600 text-white rounded py-2">WhatsApp</button>
+      <button onclick="newList()" class="bg-yellow-500 hover:bg-yellow-600 text-white rounded py-2">New List</button>
+      <button onclick="showPreviousLists()" class="bg-purple-500 hover:bg-purple-600 text-white rounded py-2">Load Previous</button>
+    </div>
+
+    <!-- Previous Lists Display -->
+    <div id="previous-lists" class="bg-gray-50 border rounded p-2 hidden">
+      <h3 class="text-sm font-semibold text-gray-700 mb-2">Available Previous Lists:</h3>
+      <ul id="previous-list-names" class="space-y-1 text-sm text-gray-800"></ul>
+    </div>
+  </div>
+
+  <script>
+    let shoppingList = [];
+    let previousLists = JSON.parse(localStorage.getItem('previousLists')) || [];
+
+    function renderItems() {
+      const list = document.getElementById("items-list");
+      list.innerHTML = "";
+      shoppingList.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.className = "flex justify-between items-center bg-gray-100 px-3 py-1 rounded";
+
+        const itemTextClass = item.completed ? "line-through text-gray-500" : "";
+        div.innerHTML = `
+          <div class="${itemTextClass}">${item.name} - ${item.quantity}</div>
+          <div class="space-x-2 flex-shrink-0 text-sm">
+            <button onclick="toggleComplete(${index})" class="text-green-600 hover:underline">Complete</button>
+            <button onclick="editItem(${index})" class="text-indigo-500 hover:underline">Edit</button>
+            <button onclick="deleteItem(${index})" class="text-red-500 hover:underline">Delete</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function addItem() {
+      const name = document.getElementById("item-name").value.trim();
+      const quantity = document.getElementById("manual-quantity").value.trim() || document.getElementById("quantity-select").value;
+      if (name && quantity) {
+        shoppingList.push({ name, quantity, completed: false });
+        saveList();
+        document.getElementById("item-name").value = "";
+        document.getElementById("manual-quantity").value = "";
+        renderItems();
+      }
+    }
+
+    function deleteItem(index) {
+      shoppingList.splice(index, 1);
+      saveList();
+      renderItems();
+    }
+
+    function editItem(index) {
+      const newName = prompt("Enter new item name:", shoppingList[index].name);
+      const newQuantity = prompt("Enter new quantity:", shoppingList[index].quantity);
+      if (newName && newQuantity) {
+        shoppingList[index].name = newName;
+        shoppingList[index].quantity = newQuantity;
+        saveList();
+        renderItems();
+      }
+    }
+
+    function toggleComplete(index) {
+      shoppingList[index].completed = !shoppingList[index].completed;
+      saveList();
+      renderItems();
+    }
+
+    function downloadCSV() {
+      const csv = "Item,Quantity,Completed\n" + shoppingList.map(item =>
+        `${item.name},${item.quantity},${item.completed ? 'Yes' : 'No'}`
+      ).join("\n");
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'shopping_list.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function sendToWhatsApp() {
+      const message = shoppingList.map(item =>
+        `${item.completed ? "✅ " : "🛒 "}${item.name} : ${item.quantity}`
+      ).join('%0A');
+      const url = `https://wa.me/?text=${message}`;
+      window.open(url, '_blank');
+    }
+
+    function newList() {
+      if (shoppingList.length > 0) {
+        const name = prompt("Save current list? Enter a name:");
+        if (name) {
+          previousLists.push({ name, items: [...shoppingList] });
+          localStorage.setItem("previousLists", JSON.stringify(previousLists));
+        }
+      }
+      shoppingList = [];
+      saveList();
+      renderItems();
+    }
+
+    function showPreviousLists() {
+      const container = document.getElementById("previous-lists");
+      const listEl = document.getElementById("previous-list-names");
+      listEl.innerHTML = "";
+      if (previousLists.length === 0) {
+        alert("No previous lists available.");
+        return;
+      }
+      container.classList.remove("hidden");
+      previousLists.forEach((list, index) => {
+        const li = document.createElement("li");
+        li.className = "cursor-pointer hover:text-indigo-500";
+        li.textContent = list.name;
+        li.onclick = () => {
+          shoppingList = [...list.items];
+          saveList();
+          renderItems();
+        };
+        listEl.appendChild(li);
+      });
+    }
+
+    function saveList() {
+      localStorage.setItem("shoppingList", JSON.stringify(shoppingList));
+    }
+
+    window.onload = function () {
+      shoppingList = JSON.parse(localStorage.getItem("shoppingList")) || [];
+      renderItems();
+    };
+  </script>
+</body>
+</html>
